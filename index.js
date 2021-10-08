@@ -169,10 +169,6 @@ async function vercelInspect(deploymentUrl) {
 }
 
 async function findCommentsForEvent() {
-  // Batch: Wokraround https://github.com/amondnet/vercel-action/issues/79
-  return [];
-
-  /*
   core.debug('find comments for event');
   if (context.eventName === 'push') {
     core.debug('event is "commit", use "listCommentsForCommit"');
@@ -190,10 +186,13 @@ async function findCommentsForEvent() {
   }
   core.error('not supported event_type');
   return [];
-  */
 }
 
 async function findPreviousComment(text) {
+  // Batch: Wokraround https://github.com/amondnet/vercel-action/issues/79
+  return null;
+
+  /*
   if (!octokit) {
     return null;
   }
@@ -209,6 +208,7 @@ async function findPreviousComment(text) {
   }
   core.info('previous comment not found');
   return null;
+  */
 }
 
 function joinDeploymentUrls(deploymentUrl, aliasDomains_) {
