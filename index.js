@@ -80,6 +80,21 @@ async function setEnv() {
   }
 }
 
+function addVercelMetadata(key, value, providedArgs) {
+  // returns a list for the metadata commands if key was not supplied by user in action parameters
+  // returns an empty list if key was provided by user
+  const pattern = `^${key}=.+`;
+  const metadataRegex = new RegExp(pattern, 'g');
+  // eslint-disable-next-line no-restricted-syntax
+  for (const arg of providedArgs) {
+    if (arg.match(metadataRegex)) {
+      return [];
+    }
+  }
+
+  return ['-m', `${key}=${value}`];
+}
+
 async function vercelDeploy(ref, commit) {
   let myOutput = '';
   // eslint-disable-next-line no-unused-vars
@@ -100,30 +115,29 @@ async function vercelDeploy(ref, commit) {
     options.cwd = workingDirectory;
   }
 
+  const providedArgs = vercelArgs.split(/ +/);
+
   const args = [
     ...vercelArgs.split(/ +/),
-    '-t',
-    vercelToken,
-    '-m',
-    `githubCommitSha=${context.sha}`,
-    '-m',
-    `githubCommitAuthorName=${context.actor}`,
-    '-m',
-    `githubCommitAuthorLogin=${context.actor}`,
-    '-m',
-    'githubDeployment=1',
-    '-m',
-    `githubOrg=${context.repo.owner}`,
-    '-m',
-    `githubRepo=${context.repo.repo}`,
-    '-m',
-    `githubCommitOrg=${context.repo.owner}`,
-    '-m',
-    `githubCommitRepo=${context.repo.repo}`,
-    '-m',
-    `githubCommitMessage=${commit}`,
-    '-m',
-    `githubCommitRef=${ref}`,
+    ...['-t', vercelToken],
+    ...addVercelMetadata('githubCommitSha', context.sha, providedArgs),
+    ...addVercelMetadata('githubCommitAuthorName', context.actor, providedArgs),
+    ...addVercelMetadata(
+      'githubCommitAuthorLogin',
+      context.actor,
+      providedArgs,
+    ),
+    ...addVercelMetadata('githubDeployment', 1, providedArgs),
+    ...addVercelMetadata('githubOrg', context.repo.owner, providedArgs),
+    ...addVercelMetadata('githubRepo', context.repo.repo, providedArgs),
+    ...addVercelMetadata('githubCommitOrg', context.repo.owner, providedArgs),
+    ...addVercelMetadata('githubCommitRepo', context.repo.repo, providedArgs),
+    ...addVercelMetadata('githubCommitMessage', commit, providedArgs),
+    ...addVercelMetadata(
+      'githubCommitRef',
+      ref.replace('refs/heads/', ''),
+      providedArgs,
+    ),
   ];
 
   if (vercelScope) {
@@ -228,19 +242,26 @@ function buildCommentBody(deploymentCommit, deploymentUrl, deploymentName) {
     return undefined;
   }
   const prefix = `${buildCommentPrefix(deploymentName)}\n\n`;
-  if (typeof githubComment === 'string' || githubComment instanceof String) {
-    return prefix + githubComment;
-  }
-  return (
+
+  const rawGithubComment =
     prefix +
-    stripIndents`
+    (typeof githubComment === 'string' || githubComment instanceof String
+      ? githubComment
+      : stripIndents`
       ✅ Preview
-      ${joinDeploymentUrls(deploymentUrl, aliasDomains)}
+      {{deploymentUrl}}
       
-      Built with commit ${deploymentCommit}.
+      Built with commit {{deploymentCommit}}.
       This pull request is being automatically deployed with [vercel-action](https://github.com/marketplace/actions/vercel-action)
-    `
-  );
+    `);
+
+  return rawGithubComment
+    .replace(/\{\{deploymentCommit\}\}/g, deploymentCommit)
+    .replace(/\{\{deploymentName\}\}/g, deploymentName)
+    .replace(
+      /\{\{deploymentUrl\}\}/g,
+      joinDeploymentUrls(deploymentUrl, aliasDomains),
+    );
 }
 
 async function createCommentOnCommit(
